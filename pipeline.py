@@ -13,35 +13,10 @@ from sklearn.tree import DecisionTreeClassifier
 
 from nltk.util import ngrams
 
+from ds_tools.dstools.ml.experiment import run_experiment, update_model_stats
 import ds_tools.dstools.ml.metrics as m
 import ds_tools.dstools.ml.ensemble as ens
 import ds_tools.dstools.ml.xgboost_tools as xgb
-
-
-def update_model_stats(stats_file, params, results):
-    import json
-    import os.path
-    
-    if os.path.exists(stats_file):
-        with open(stats_file, 'r') as f:
-            stats = json.load(f)
-    else:
-        stats = []
-        
-    stats.append({**results, **params})
-    
-    with open(stats_file, 'w') as f:
-        json.dump(stats, f, indent=4)
-
-        
-def run_experiment(evaluator, params, stats_file):
-    import time
-    
-    params = init_params(params)
-    start = time.time()
-    scores = evaluator(params)
-    exec_time = time.time() - start
-    update_model_stats(stats_file, params, {**scores, 'exec-time-sec': exec_time})
 
 
 def preds_to_rank(preds):
@@ -87,26 +62,7 @@ def qwk_evalerror(preds, dtrain):
     pred = preds_to_rank(preds)
     return 'qwk',  m.quadratic_weighted_kappa(dtrain.get_label(), pred)
 
-
-def cv_test(est, n_folds):
-    df = pd.read_csv('train.csv.gz', index_col='id')
-
-    df.fillna({'query': '', 'product_title': '', 'product_description': ''}, inplace=True)
-
-    features = df.drop(['median_relevance', 'relevance_variance'], axis=1)
-    target = df['median_relevance']
-
-    scores = cross_val_score(
-        estimator=est,
-        X=features,
-        y=target,
-        cv=n_folds,
-        scoring=qwk_score,
-        n_jobs=1,
-        verbose=0)
-    return {'qwk-mean': scores.mean(), 'qwk-std': scores.std()}
-    
-    
+  
 def column_transformer(name):
     return FunctionTransformer(partial(pd.DataFrame.__getitem__, key=name), validate=False)
 
@@ -179,7 +135,7 @@ def validate(params):
     elif est_type == 'xgb/dt':
         est = ens.ModelEnsembleRegressor(
                 intermediate_estimators=[
-                    XGBoostRegressor(**xgb_params),
+                    xgb.XGBoostRegressor(**xgb_params),
                 ],
                 assembly_estimator=DecisionTreeClassifier(max_depth=2),
                 ensemble_train_size=1
@@ -189,7 +145,50 @@ def validate(params):
     return cv_test(pl, params['n_folds'])
 
 
-def init_params(overrides):
+def cfsr_dataset(params):
+    import os
+    df = pd.read_csv(f'{os.path.dirname(__file__)}/train.csv.gz')
+    df.fillna({'query': '', 'product_title': '', 'product_description': ''}, inplace=True)
+    features = df.drop(['median_relevance', 'relevance_variance'], axis=1)
+    return features, df.median_relevance
+
+
+def cfsr_estimator(params):    
+    transf_type = params['transf_type']
+    if transf_type == 'term_cnt':
+        transf = init_tc_transf(params)
+    elif transf_type == 'qmatch':
+        transf = FunctionTransformer(query_match, validate=False)
+    elif transf_type == 'qm+tc':
+        transf = make_union(
+            FunctionTransformer(query_match, validate=False),
+            init_tc_transf(params)
+        )
+    
+    est_type = params['est_type']
+    if est_type == 'rfr':
+        est = RandomForestRegressor(
+            n_estimators=params['n_estimators'],
+            n_jobs=params['n_rfr_jobs'],
+            min_samples_split=params['min_samples_split'],
+            random_state=1,
+            verbose=0)
+    elif est_type == 'xgb':
+        est = init_xgb_est(params)
+    elif est_type == 'xgb/dt':
+        est = ens.ModelEnsembleRegressor(
+                intermediate_estimators=[
+                    XGBoostRegressor(**xgb_params),
+                ],
+                assembly_estimator=DecisionTreeClassifier(max_depth=2),
+                ensemble_train_size=1
+            )
+
+    pl = make_pipeline(transf, est)
+    return pl
+
+
+def cfsr_params(overrides):
     defaults = {
         'n_folds': 3,
         'valid_type': 'cv',
@@ -210,12 +209,32 @@ def init_params(overrides):
     return {**defaults, **overrides}
 
 
-def test_validate():
+def cfsr_experiment(overrides):
+    params = cfsr_params(overrides)
+
+    results = run_experiment(
+        params=params,
+        est=cfsr_estimator,
+        dataset=cfsr_dataset,
+        scorer=qwk_score)
+
+    update_model_stats('results.json', params, results)
+
+
+def test_cfsr_experiment():
     params = {
         'n_folds': 2,
         'est_type': 'xgb',
         'transf_type':'qmatch',
         "num_rounds": 100,
     }
-    
-    print(validate(init_params(params)))
+
+    params = cfsr_params(params)
+
+    results = run_experiment(
+        params=params,
+        est=cfsr_estimator,
+        dataset=cfsr_dataset,
+        scorer=qwk_score)
+
+    print(results)
