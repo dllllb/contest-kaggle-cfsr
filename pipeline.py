@@ -110,41 +110,6 @@ def init_tc_transf(params):
     )
 
 
-def validate(params):    
-    transf_type = params['transf_type']
-    if transf_type == 'term_cnt':
-        transf = init_tc_transf(params)
-    elif transf_type == 'qmatch':
-        transf = FunctionTransformer(query_match, validate=False)
-    elif transf_type == 'qm+tc':
-        transf = make_union(
-            FunctionTransformer(query_match, validate=False),
-            init_tc_transf(params)
-        )
-    
-    est_type = params['est_type']
-    if est_type == 'rfr':
-        est = RandomForestRegressor(
-            n_estimators=params['n_estimators'],
-            n_jobs=params['n_rfr_jobs'],
-            min_samples_split=params['min_samples_split'],
-            random_state=1,
-            verbose=0)
-    elif est_type == 'xgb':
-        est = init_xgb_est(params)
-    elif est_type == 'xgb/dt':
-        est = ens.ModelEnsembleRegressor(
-                intermediate_estimators=[
-                    xgb.XGBoostRegressor(**xgb_params),
-                ],
-                assembly_estimator=DecisionTreeClassifier(max_depth=2),
-                ensemble_train_size=1
-            )
-
-    pl = make_pipeline(transf, est)
-    return cv_test(pl, params['n_folds'])
-
-
 def cfsr_dataset(params):
     import os
     df = pd.read_csv(f'{os.path.dirname(__file__)}/train.csv.gz')
@@ -177,9 +142,7 @@ def cfsr_estimator(params):
         est = init_xgb_est(params)
     elif est_type == 'xgb/dt':
         est = ens.ModelEnsembleRegressor(
-                intermediate_estimators=[
-                    XGBoostRegressor(**xgb_params),
-                ],
+                intermediate_estimators=[init_xgb_est(params)],
                 assembly_estimator=DecisionTreeClassifier(max_depth=2),
                 ensemble_train_size=1
             )
