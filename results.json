@@ -1,7 +1,7 @@
 [
     {
-        "qwk-mean": 0.4887101640011851,
-        "qwk-std": 0.008559965694258697,
+        "score-mean": 0.4887101640011851,
+        "score-std": 0.008559965694258697,
         "exec-time-sec": 1725.75149703,
         "n_folds": 3,
         "valid_type": "cv",
@@ -22,8 +22,8 @@
         "transf_type": "term_cnt"
     },
     {
-        "qwk-mean": 0.455176433113,
-        "qwk-std": 0.00380420601188,
+        "score-mean": 0.455176433113,
+        "score-std": 0.00380420601188,
         "exec-time-sec": 313.007899046,
         "n_folds": 3,
         "valid_type": "cv",
@@ -44,8 +44,8 @@
         "transf_type": "term_cnt"
     },
     {
-        "qwk-mean": 0.501266249762,
-        "qwk-std": 0.0286023436439,
+        "score-mean": 0.501266249762,
+        "score-std": 0.0286023436439,
         "exec-time-sec": 209.756793976,
         "n_folds": 3,
         "valid_type": "cv",
@@ -66,8 +66,8 @@
         "transf_type": "term_cnt"
     },
     {
-        "qwk-mean": 0.437250268495,
-        "qwk-std": 0.0101637687806,
+        "score-mean": 0.437250268495,
+        "score-std": 0.0101637687806,
         "exec-time-sec": 19.1492609978,
         "n_folds": 3,
         "valid_type": "cv",
@@ -88,8 +88,8 @@
         "transf_type": "qmatch"
     },
     {
-        "qwk-mean": 0.557947182125,
-        "qwk-std": 0.00811891669329,
+        "score-mean": 0.557947182125,
+        "score-std": 0.00811891669329,
         "exec-time-sec": 1239.4671309,
         "n_folds": 3,
         "valid_type": "cv",
@@ -110,8 +110,8 @@
         "transf_type": "qm+tc"
     },
     {
-        "qwk-mean": 0.5515290747311451,
-        "qwk-std": 0.011461917303834316,
+        "score-mean": 0.5515290747311451,
+        "score-std": 0.011461917303834316,
         "exec-time-sec": 513.0306997299194,
         "n_folds": 3,
         "valid_type": "cv",
@@ -132,8 +132,8 @@
         "transf_type": "qm+tc"
     },
     {
-        "qwk-mean": 0.35388427241440734,
-        "qwk-std": 0.09705631422780531,
+        "score-mean": 0.35388427241440734,
+        "score-std": 0.09705631422780531,
         "exec-time-sec": 138.0583779811859,
         "n_folds": 3,
         "valid_type": "cv",
@@ -154,8 +154,8 @@
         "es_metric": "qwk"
     },
     {
-        "qwk-mean": 0.4996019186405629,
-        "qwk-std": 0.008325330111432907,
+        "score-mean": 0.4996019186405629,
+        "score-std": 0.008325330111432907,
         "exec-time-sec": 282.0672309398651,
         "n_folds": 3,
         "valid_type": "cv",
