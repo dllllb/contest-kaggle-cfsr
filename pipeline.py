@@ -2,9 +2,8 @@ import pandas as pd
 import numpy as np
 from functools import partial
 
-from sklearn.model_selection import cross_val_score
-
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import make_pipeline, make_union
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import FunctionTransformer
@@ -13,7 +12,6 @@ from sklearn.tree import DecisionTreeClassifier
 
 from nltk.util import ngrams
 
-from ds_tools.dstools.ml.experiment import run_experiment, update_model_stats
 import ds_tools.dstools.ml.metrics as m
 import ds_tools.dstools.ml.ensemble as ens
 import ds_tools.dstools.ml.xgboost_tools as xgb
@@ -110,7 +108,7 @@ def init_tc_transf(params):
     )
 
 
-def cfsr_dataset(params):
+def cfsr_dataset(_):
     import os
     df = pd.read_csv(f'{os.path.dirname(__file__)}/train.csv.gz')
     df.fillna({'query': '', 'product_title': '', 'product_description': ''}, inplace=True)
@@ -129,6 +127,8 @@ def cfsr_estimator(params):
             FunctionTransformer(query_match, validate=False),
             init_tc_transf(params)
         )
+    else:
+        raise AssertionError(f'unknown transformer: "{transf_type}"')
     
     est_type = params['est_type']
     if est_type == 'rfr':
@@ -142,10 +142,11 @@ def cfsr_estimator(params):
         est = init_xgb_est(params)
     elif est_type == 'xgb/dt':
         est = ens.ModelEnsembleRegressor(
-                intermediate_estimators=[init_xgb_est(params)],
-                assembly_estimator=DecisionTreeClassifier(max_depth=2),
-                ensemble_train_size=1
-            )
+            intermediate_estimators=[init_xgb_est(params)],
+            assembly_estimator=DecisionTreeClassifier(max_depth=2),
+            ensemble_train_size=1)
+    else:
+        raise AssertionError(f'unknown estimator: "{est_type}"')
 
     pl = make_pipeline(transf, est)
     return pl
@@ -201,3 +202,36 @@ def test_cfsr_experiment():
         scorer=qwk_score)
 
     print(results)
+
+
+def update_model_stats(stats_file, params, results):
+    import json
+    import os.path
+
+    if os.path.exists(stats_file):
+        with open(stats_file, 'r') as f:
+            stats = json.load(f)
+    else:
+        stats = []
+
+    stats.append({**results, **params})
+
+    with open(stats_file, 'w') as f:
+        json.dump(stats, f, indent=4)
+
+
+def run_experiment(est, dataset, scorer, params):
+    import time
+
+    start = time.time()
+    if params['valid_type'] == 'cv':
+        cv = params['n_folds']
+        features, target = dataset(params)
+        scores = cv_test(est(params), features, target, scorer, cv)
+    exec_time = time.time() - start
+    return {**scores, 'exec-time-sec': exec_time}
+
+
+def cv_test(est, features, target, scorer, cv):
+    scores = cross_val_score(est, features, target, scoring=scorer, cv=cv)
+    return {'score-mean': scores.mean(), 'score-std': scores.std()}
