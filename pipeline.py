@@ -67,7 +67,7 @@ def column_transformer(name):
 
 def init_xgb_est(params):
     keys = {
-        'eta',
+        'learning_rate',
         'n_estimators',
         'max_depth',
         'min_child_weight',
