@@ -3,7 +3,7 @@ import numpy as np
 from functools import partial
 
 from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score, train_test_split
 from sklearn.pipeline import make_pipeline, make_union
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import FunctionTransformer
@@ -11,10 +11,10 @@ from sklearn.preprocessing import FunctionTransformer
 from sklearn.tree import DecisionTreeClassifier
 
 from nltk.util import ngrams
+from xgboost import XGBRegressor
 
-import ds_tools.dstools.ml.metrics as m
-import ds_tools.dstools.ml.ensemble as ens
-import ds_tools.dstools.ml.xgboost_tools as xgb
+from qwk import quadratic_weighted_kappa
+from ensemble import ModelEnsembleRegressor
 
 
 def preds_to_rank(preds):
@@ -53,14 +53,14 @@ def query_match(df):
 
 def qwk_score(est, features, labels):
     pred = preds_to_rank(est.predict(features))
-    return m.quadratic_weighted_kappa(labels, pred)
+    return quadratic_weighted_kappa(labels, pred)
 
 
 def qwk_evalerror(preds, dtrain):
     pred = preds_to_rank(preds)
-    return 'qwk',  m.quadratic_weighted_kappa(dtrain.get_label(), pred)
+    return 'qwk',  quadratic_weighted_kappa(dtrain.get_label(), pred)
 
-  
+
 def column_transformer(name):
     return FunctionTransformer(partial(pd.DataFrame.__getitem__, key=name), validate=False)
 
@@ -68,27 +68,35 @@ def column_transformer(name):
 def init_xgb_est(params):
     keys = {
         'eta',
-        'num_rounds',
+        'n_estimators',
         'max_depth',
         'min_child_weight',
         'gamma',
         'subsample',
         'colsample_bytree',
-        'num_es_rounds',
-        'es_share'
     }
-        
+
     xgb_params = {
         "objective": "reg:linear",
-        "verbose": 120,
         **{k: v for k, v in params.items() if k in keys},
     }
-    
-    if params['es_metric'] == 'qwk':    
+
+    if params['es_metric'] == 'qwk':
         xgb_params['eval_func'] = qwk_evalerror
         xgb_params['maximize_eval'] = True
-    
-    return xgb.XGBoostRegressor(**xgb_params)
+
+    class XGBC(XGBRegressor):
+        def fit(self, x, y, **kwargs):
+            f_train, f_val, t_train, t_val = train_test_split(x, y, test_size=params['es_share'])
+            super().fit(
+                f_train,
+                t_train,
+                eval_set=[(f_val, t_val)],
+                eval_metric=params['es_metric'],
+                early_stopping_rounds=params['num_es_rounds'],
+                verbose=120)
+
+    return XGBC(**xgb_params)
 
 
 def init_tc_transf(params):
@@ -116,7 +124,7 @@ def cfsr_dataset(_):
     return features, df.median_relevance
 
 
-def cfsr_estimator(params):    
+def cfsr_estimator(params):
     transf_type = params['transf_type']
     if transf_type == 'term_cnt':
         transf = init_tc_transf(params)
@@ -129,7 +137,7 @@ def cfsr_estimator(params):
         )
     else:
         raise AssertionError(f'unknown transformer: "{transf_type}"')
-    
+
     est_type = params['est_type']
     if est_type == 'rfr':
         est = RandomForestRegressor(
@@ -141,7 +149,7 @@ def cfsr_estimator(params):
     elif est_type == 'xgb':
         est = init_xgb_est(params)
     elif est_type == 'xgb/dt':
-        est = ens.ModelEnsembleRegressor(
+        est = ModelEnsembleRegressor(
             intermediate_estimators=[init_xgb_est(params)],
             assembly_estimator=DecisionTreeClassifier(max_depth=2),
             ensemble_train_size=1)
@@ -155,17 +163,15 @@ def cfsr_estimator(params):
 def cfsr_params(overrides):
     defaults = {
         'n_folds': 3,
-        'valid_type': 'cv',
-        "eta": 0.01,
+        "learning_rate": 0.01,
         "min_child_weight": 6,
         "subsample": 0.7,
         "colsample_bytree": 0.7,
         "silent": 1,
         "max_depth": 6,
-        "num_rounds": 10000,
+        "n_estimators": 200,
         "num_es_rounds": 120,
         "es_share": .05,
-        'n_estimators': 200,
         'n_rfr_jobs': 2,
         'min_samples_split': 4,
         'es_metric': 'rmse',
@@ -224,10 +230,9 @@ def run_experiment(est, dataset, scorer, params):
     import time
 
     start = time.time()
-    if params['valid_type'] == 'cv':
-        cv = params['n_folds']
-        features, target = dataset(params)
-        scores = cv_test(est(params), features, target, scorer, cv)
+    cv = params['n_folds']
+    features, target = dataset(params)
+    scores = cv_test(est(params), features, target, scorer, cv)
     exec_time = time.time() - start
     return {**scores, 'exec-time-sec': exec_time}
 
