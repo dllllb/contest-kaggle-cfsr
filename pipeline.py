@@ -58,7 +58,7 @@ def qwk_score(est, features, labels):
 
 def qwk_evalerror(preds, dtrain):
     pred = preds_to_rank(preds)
-    return 'qwk',  quadratic_weighted_kappa(dtrain.get_label(), pred)
+    return 'qwk',  -quadratic_weighted_kappa(dtrain.get_label(), pred)
 
 
 def column_transformer(name):
@@ -83,7 +83,6 @@ def init_xgb_est(params):
 
     if params['es_metric'] == 'qwk':
         xgb_params['eval_func'] = qwk_evalerror
-        xgb_params['maximize_eval'] = True
 
     class XGBC(XGBRegressor):
         def fit(self, x, y, **kwargs):
