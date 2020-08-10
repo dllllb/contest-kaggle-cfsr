@@ -1,7 +1,6 @@
 # Links
 - https://www.kaggle.com/c/crowdflower-search-relevance
 
-
 # Solutions
 - 1-st place: https://github.com/ChenglongChen/Kaggle_CrowdFlower
 - 42-th place: https://github.com/marknagelberg/search-relevance/
