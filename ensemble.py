@@ -1,6 +1,6 @@
 import numpy as np
 from sklearn.base import BaseEstimator, RegressorMixin
-from sklearn.externals.joblib import Parallel
+from joblib import Parallel
 
 
 class ModelEnsembleRegressor(BaseEstimator, RegressorMixin):
